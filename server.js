@@ -1,4 +1,3 @@
-
 const express = require("express");
 const path = require("path");
 const db = require("./database");
@@ -51,7 +50,10 @@ function formatWater(row) {
 
 // Health check
 app.get("/api/health", (req, res) => {
-    res.json({ success: true, message: "CatCare API is running!" });
+    res.json({
+        success: true,
+        message: "CatCare API is running!"
+    });
 });
 
 // Get cat profile
@@ -107,7 +109,13 @@ app.patch("/api/cat", (req, res) => {
         SET name = ?, age = ?, weight_kg = ?,
             favorite_food = ?, activity = ?
         WHERE id = 1
-    `).run(name.trim(), age, weightKg, favoriteFood.trim(), activity.trim());
+    `).run(
+        name.trim(),
+        age,
+        weightKg,
+        favoriteFood.trim(),
+        activity.trim()
+    );
 
     res.json({
         success: true,
@@ -118,7 +126,12 @@ app.patch("/api/cat", (req, res) => {
 
 // Add feeding record
 app.post("/api/feeding", (req, res) => {
-    const { foodName, quantityGrams, mealTime, notes = "" } = req.body;
+    const {
+        foodName,
+        quantityGrams,
+        mealTime,
+        notes = ""
+    } = req.body;
 
     if (
         typeof foodName !== "string" || !foodName.trim() ||
@@ -169,7 +182,7 @@ app.get("/api/feeding", (req, res) => {
     });
 });
 
-// Feeding summary
+// IMPORTANT: Get feeding summary BEFORE the /:id route
 app.get("/api/feeding/summary", (req, res) => {
     const summary = db.prepare(`
         SELECT COUNT(*) AS totalRecords,
@@ -177,13 +190,50 @@ app.get("/api/feeding/summary", (req, res) => {
         FROM feeding_records
     `).get();
 
-    res.json({ success: true, ...summary });
+    res.json({
+        success: true,
+        ...summary
+    });
+});
+
+// Get one feeding record by ID
+app.get("/api/feeding/:id", (req, res) => {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id < 1) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid feeding record ID."
+        });
+    }
+
+    const record = db.prepare(
+        "SELECT * FROM feeding_records WHERE id = ?"
+    ).get(id);
+
+    if (!record) {
+        return res.status(404).json({
+            success: false,
+            message: "Feeding record not found."
+        });
+    }
+
+    res.json({
+        success: true,
+        record: formatFeeding(record)
+    });
 });
 
 // Edit feeding record
 app.patch("/api/feeding/:id", (req, res) => {
     const id = Number(req.params.id);
-    const { foodName, quantityGrams, mealTime, notes = "" } = req.body;
+
+    const {
+        foodName,
+        quantityGrams,
+        mealTime,
+        notes = ""
+    } = req.body;
 
     if (
         !Number.isInteger(id) || id < 1 ||
@@ -203,7 +253,13 @@ app.patch("/api/feeding/:id", (req, res) => {
         UPDATE feeding_records
         SET food_name = ?, quantity_grams = ?, meal_time = ?, notes = ?
         WHERE id = ?
-    `).run(foodName.trim(), Number(quantityGrams), mealTime, notes, id);
+    `).run(
+        foodName.trim(),
+        Number(quantityGrams),
+        mealTime,
+        notes,
+        id
+    );
 
     if (!result.changes) {
         return res.status(404).json({
@@ -245,20 +301,31 @@ app.delete("/api/feeding/:id", (req, res) => {
         });
     }
 
-    res.json({ success: true, message: "Feeding record deleted!" });
+    res.json({
+        success: true,
+        message: "Feeding record deleted!"
+    });
 });
 
 // Add water record
 app.post("/api/water", (req, res) => {
-    const { offeredMl, consumedMl, measured = false, notes = "" } = req.body;
+    const {
+        offeredMl,
+        consumedMl,
+        measured = false,
+        notes = ""
+    } = req.body;
 
     if (
-        !Number.isFinite(Number(offeredMl)) || Number(offeredMl) < 0 ||
+        !Number.isFinite(Number(offeredMl)) ||
+        Number(offeredMl) < 0 ||
         typeof measured !== "boolean" ||
         typeof notes !== "string" ||
         (measured && (
-            consumedMl === null || consumedMl === undefined ||
-            !Number.isFinite(Number(consumedMl)) || Number(consumedMl) < 0
+            consumedMl === null ||
+            consumedMl === undefined ||
+            !Number.isFinite(Number(consumedMl)) ||
+            Number(consumedMl) < 0
         ))
     ) {
         return res.status(400).json({
@@ -308,29 +375,43 @@ app.get("/api/water/summary", (req, res) => {
     const summary = db.prepare(`
         SELECT COUNT(*) AS totalRecords,
                COALESCE(SUM(offered_ml), 0) AS totalOfferedMl,
-               COALESCE(SUM(CASE WHEN measured = 1 THEN 1 ELSE 0 END), 0)
-                   AS measuredConsumptionRecords,
-               COALESCE(SUM(CASE WHEN measured = 1 THEN consumed_ml ELSE 0 END), 0)
-                   AS totalMeasuredConsumedMl
+               COALESCE(
+                   SUM(CASE WHEN measured = 1 THEN 1 ELSE 0 END), 0
+               ) AS measuredConsumptionRecords,
+               COALESCE(
+                   SUM(CASE WHEN measured = 1 THEN consumed_ml ELSE 0 END), 0
+               ) AS totalMeasuredConsumedMl
         FROM water_records
     `).get();
 
-    res.json({ success: true, ...summary });
+    res.json({
+        success: true,
+        ...summary
+    });
 });
 
 // Edit water record
 app.patch("/api/water/:id", (req, res) => {
     const id = Number(req.params.id);
-    const { offeredMl, consumedMl, measured, notes = "" } = req.body;
+
+    const {
+        offeredMl,
+        consumedMl,
+        measured,
+        notes = ""
+    } = req.body;
 
     if (
         !Number.isInteger(id) || id < 1 ||
-        !Number.isFinite(Number(offeredMl)) || Number(offeredMl) < 0 ||
+        !Number.isFinite(Number(offeredMl)) ||
+        Number(offeredMl) < 0 ||
         typeof measured !== "boolean" ||
         typeof notes !== "string" ||
         (measured && (
-            consumedMl === null || consumedMl === undefined ||
-            !Number.isFinite(Number(consumedMl)) || Number(consumedMl) < 0
+            consumedMl === null ||
+            consumedMl === undefined ||
+            !Number.isFinite(Number(consumedMl)) ||
+            Number(consumedMl) < 0
         ))
     ) {
         return res.status(400).json({
@@ -391,7 +472,10 @@ app.delete("/api/water/:id", (req, res) => {
         });
     }
 
-    res.json({ success: true, message: "Water record deleted!" });
+    res.json({
+        success: true,
+        message: "Water record deleted!"
+    });
 });
 
 // Daily wellness report (uses UTC creation date)
@@ -429,10 +513,12 @@ app.get("/api/wellness/daily", (req, res) => {
     const water = db.prepare(`
         SELECT COUNT(*) AS totalRecords,
                COALESCE(SUM(offered_ml), 0) AS totalOfferedMl,
-               COALESCE(SUM(CASE WHEN measured = 1 THEN 1 ELSE 0 END), 0)
-                   AS measuredConsumptionRecords,
-               COALESCE(SUM(CASE WHEN measured = 1 THEN consumed_ml ELSE 0 END), 0)
-                   AS totalMeasuredConsumedMl
+               COALESCE(
+                   SUM(CASE WHEN measured = 1 THEN 1 ELSE 0 END), 0
+               ) AS measuredConsumptionRecords,
+               COALESCE(
+                   SUM(CASE WHEN measured = 1 THEN consumed_ml ELSE 0 END), 0
+               ) AS totalMeasuredConsumedMl
         FROM water_records
         WHERE substr(created_at, 1, 10) = ?
     `).get(date);
@@ -471,6 +557,7 @@ app.use((err, req, res, next) => {
     }
 
     console.error(err);
+
     res.status(500).json({
         success: false,
         message: "Internal server error."
