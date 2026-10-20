@@ -316,17 +316,25 @@ app.post("/api/water", (req, res) => {
         notes = ""
     } = req.body;
 
+    // Validate water details
     if (
+        offeredMl === undefined ||
+        offeredMl === null ||
+        offeredMl === "" ||
         !Number.isFinite(Number(offeredMl)) ||
         Number(offeredMl) < 0 ||
         typeof measured !== "boolean" ||
         typeof notes !== "string" ||
-        (measured && (
-            consumedMl === null ||
-            consumedMl === undefined ||
-            !Number.isFinite(Number(consumedMl)) ||
-            Number(consumedMl) < 0
-        ))
+        (
+            measured &&
+            (
+                consumedMl === null ||
+                consumedMl === undefined ||
+                consumedMl === "" ||
+                !Number.isFinite(Number(consumedMl)) ||
+                Number(consumedMl) < 0
+            )
+        )
     ) {
         return res.status(400).json({
             success: false,
@@ -334,6 +342,7 @@ app.post("/api/water", (req, res) => {
         });
     }
 
+    // Insert the record into SQLite
     const result = db.prepare(`
         INSERT INTO water_records
             (offered_ml, consumed_ml, measured, notes, created_at)
@@ -346,6 +355,7 @@ app.post("/api/water", (req, res) => {
         new Date().toISOString()
     );
 
+    // Retrieve the newly created record
     const record = db.prepare(
         "SELECT * FROM water_records WHERE id = ?"
     ).get(result.lastInsertRowid);
@@ -357,6 +367,56 @@ app.post("/api/water", (req, res) => {
     });
 });
 
+
+// GET: Retrieve all water records
+app.get("/api/water", (req, res) => {
+    const rows = db.prepare(`
+        SELECT *
+        FROM water_records
+        ORDER BY id ASC
+    `).all();
+
+    res.json({
+        success: true,
+        count: rows.length,
+        records: rows.map(formatWater)
+    });
+});
+
+
+// GET: Retrieve one water record by ID
+app.get("/api/water/:id", (req, res) => {
+    const id = Number(req.params.id);
+
+    // Validate the ID
+    if (!Number.isInteger(id) || id < 1) {
+        return res.status(400).json({
+            success: false,
+            message: "Invalid water record ID."
+        });
+    }
+
+    // Find the record in SQLite
+    const record = db.prepare(`
+        SELECT *
+        FROM water_records
+        WHERE id = ?
+    `).get(id);
+
+    // Return 404 if the record does not exist
+    if (!record) {
+        return res.status(404).json({
+            success: false,
+            message: "Water record not found."
+        });
+    }
+
+    // Return the requested record
+    res.json({
+        success: true,
+        record: formatWater(record)
+    });
+});
 // Get all water records
 app.get("/api/water", (req, res) => {
     const rows = db.prepare(
