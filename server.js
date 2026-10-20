@@ -383,14 +383,33 @@ app.get("/api/water", (req, res) => {
     });
 });
 
+// Water summary
+app.get("/api/water/summary", (req, res) => {
+    const summary = db.prepare(`
+        SELECT COUNT(*) AS totalRecords,
+               COALESCE(SUM(offered_ml), 0) AS totalOfferedMl,
+               COALESCE(
+                   SUM(CASE WHEN measured = 1 THEN 1 ELSE 0 END), 0
+               ) AS measuredConsumptionRecords,
+               COALESCE(
+                   SUM(CASE WHEN measured = 1 THEN consumed_ml ELSE 0 END), 0
+               ) AS totalMeasuredConsumedMl
+        FROM water_records
+    `).get();
 
-// GET: Retrieve one water record by ID
+    res.json({
+        success: true,
+        ...summary
+    });
+}); 
+
+//GET: Retrieve one water record by ID
 app.get("/api/water/:id", (req, res) => {
     const id = Number(req.params.id);
 
     // Validate the ID
     if (!Number.isInteger(id) || id < 1) {
-        return res.status(400).json({
+     return res.status(400).json({
             success: false,
             message: "Invalid water record ID."
         });
@@ -417,6 +436,10 @@ app.get("/api/water/:id", (req, res) => {
         record: formatWater(record)
     });
 });
+
+
+
+
 // Get all water records
 app.get("/api/water", (req, res) => {
     const rows = db.prepare(
@@ -430,25 +453,8 @@ app.get("/api/water", (req, res) => {
     });
 });
 
-// Water summary
-app.get("/api/water/summary", (req, res) => {
-    const summary = db.prepare(`
-        SELECT COUNT(*) AS totalRecords,
-               COALESCE(SUM(offered_ml), 0) AS totalOfferedMl,
-               COALESCE(
-                   SUM(CASE WHEN measured = 1 THEN 1 ELSE 0 END), 0
-               ) AS measuredConsumptionRecords,
-               COALESCE(
-                   SUM(CASE WHEN measured = 1 THEN consumed_ml ELSE 0 END), 0
-               ) AS totalMeasuredConsumedMl
-        FROM water_records
-    `).get();
 
-    res.json({
-        success: true,
-        ...summary
-    });
-});
+ 
 
 // Edit water record
 app.patch("/api/water/:id", (req, res) => {
